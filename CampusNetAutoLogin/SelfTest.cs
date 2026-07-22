@@ -21,7 +21,7 @@ internal static class SelfTest
             var settings = new AppSettings();
             settings.Networks.Add(new SavedWifiProfile { Ssid = "Test", EncryptedWifiPassword = encrypted });
             checks["multi_network_model"] = settings.Networks.Count == 1 && settings.Networks[0].Ssid == "Test";
-            checks["default_portal"] = settings.PortalUrl == "http://10.200.84.3/a79.htm";
+            checks["default_portal"] = settings.PortalUrl == "http://www.msftconnecttest.com/redirect";
             checks["success"] = checks.Values.OfType<bool>().All(x => x);
         }
         catch (Exception ex)

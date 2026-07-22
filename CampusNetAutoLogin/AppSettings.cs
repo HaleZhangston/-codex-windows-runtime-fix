@@ -10,7 +10,7 @@ internal sealed class SavedWifiProfile
     public uint Authentication { get; set; }
     public string PortalUsername { get; set; } = "";
     public string EncryptedPortalPassword { get; set; } = "";
-    public string PortalUrl { get; set; } = "http://10.200.84.3/a79.htm";
+    public string PortalUrl { get; set; } = "http://www.msftconnecttest.com/redirect";
     public int Priority { get; set; } = 10;
     public bool AutoConnect { get; set; } = true;
 }
@@ -25,7 +25,7 @@ internal sealed class AppSettings
 
     public string Username { get; set; } = "";
     public string EncryptedPassword { get; set; } = "";
-    public string PortalUrl { get; set; } = "http://10.200.84.3/a79.htm";
+    public string PortalUrl { get; set; } = "http://www.msftconnecttest.com/redirect";
 
     public static string DataDirectory => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CampusNetAutoLogin");

@@ -310,7 +310,7 @@ public partial class Form1 : Form
         _wifiPassword.Text = Unprotect(saved?.EncryptedWifiPassword);
         _portalUsername.Text = saved?.PortalUsername ?? "";
         _portalPassword.Text = Unprotect(saved?.EncryptedPortalPassword);
-        _portalUrl.Text = saved?.PortalUrl ?? "http://10.200.84.3/a79.htm";
+        _portalUrl.Text = saved?.PortalUrl ?? "http://www.msftconnecttest.com/redirect";
         _priority.Value = Math.Clamp(saved?.Priority ?? 10, 1, 999);
         _networkAuto.Checked = saved?.AutoConnect ?? true;
         _autoSubmit.Checked = _settings.AutoSubmit;
