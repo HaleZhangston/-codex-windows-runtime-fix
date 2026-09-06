@@ -1,48 +1,55 @@
-# Codex Windows Runtime Workaround (Unofficial)
+# Codex Windows Runtime Fix
 
 > **Unofficial community workaround. Not affiliated with, sponsored by, or endorsed by OpenAI.**
 
-This small Windows script targets one specific Codex Desktop startup failure pattern:
+A small Windows repair utility for a specific **Codex Desktop startup failure** where Codex launches background `ChatGPT.exe` processes but never creates a visible window.
 
-- `ChatGPT.exe` processes start, but no Codex window appears.
+[![Windows](https://img.shields.io/badge/Windows-10%2F11-blue)](https://www.microsoft.com/windows)
+[![PowerShell](https://img.shields.io/badge/PowerShell-5.1%2B-blue)](https://learn.microsoft.com/powershell/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+## What problem does this fix?
+
+This project targets the following symptom pattern:
+
+- Codex Desktop starts one or more `ChatGPT.exe` processes, but no window appears.
 - `MainWindowHandle` remains `0`.
 - `%LOCALAPPDATA%\OpenAI\Codex\runtimes\cua_node` repeatedly accumulates `.staging-*` directories.
-- A staging runtime may contain `node.exe` but miss `node_repl.exe`, or may miss a deeply nested Node dependency because of Windows file-protection / long-path copy behavior.
+- A staging runtime may contain `node.exe` but miss `node_repl.exe`.
+- A very deeply nested Node dependency may be missing because normal Windows copy tools can fail on protected or very long paths.
 
-The script **does not contain or redistribute any OpenAI/Codex binaries**. It reads the already-installed Microsoft Store/MSIX package on the local PC and reconstructs that same installed runtime under the current user's `%LOCALAPPDATA%` directory.
+On an affected machine this was observed across multiple Codex Desktop updates, with runtime IDs changing after updates. The script therefore **does not hard-code a Codex version or runtime ID**.
 
-## What it does
+## How it works
 
-1. Reads the currently installed `OpenAI.Codex` MSIX package dynamically.
+The repair script:
+
+1. Reads the currently installed `OpenAI.Codex` MSIX package.
 2. Starts Codex once and waits briefly for a normal window.
-3. If the window does not appear and the current launch creates a new `.staging-*` runtime directory, extracts that runtime ID.
-4. Copies the installed `cua_node` runtime with `xcopy /G /H` and `robocopy`.
-5. Compares source and destination file lists.
-6. Copies any remaining very-long-path files with the Windows `\\?\` path prefix and byte-for-byte I/O.
-7. Validates `node.exe`, `node_repl.exe`, and that no source files are missing.
-8. Removes only failed staging directories for the **current** runtime ID, then restarts Codex.
+3. If no window appears, checks whether that launch created a fresh `.staging-*` runtime directory.
+4. Extracts the current runtime ID from the staging directory name.
+5. Reconstructs the installed `cua_node` runtime under the current user's `%LOCALAPPDATA%` using:
+   - `xcopy /G /H` for protected files;
+   - `robocopy` for deep directory trees;
+   - `\\?\` long-path byte-copy fallback for any remaining files.
+6. Compares source and destination file lists.
+7. Verifies `node.exe` and `node_repl.exe` exist.
+8. Removes only failed staging directories for the detected **current runtime ID** after integrity checks pass.
+9. Restarts Codex Desktop.
 
-## Safety / scope
+## Quick start
 
-- **Does not write to `C:\Program Files\WindowsApps`.** That location is read-only for this workaround.
-- **Does not download anything from the Internet.**
-- **Does not change the registry, Windows services, firewall, Store settings, or Codex account data.**
-- Writes only under `%LOCALAPPDATA%\OpenAI\Codex\runtimes\cua_node` and its own log file.
-- Stops only `ChatGPT.exe` processes whose executable path is inside the installed `OpenAI.Codex` MSIX package, instead of killing unrelated ChatGPT desktop processes.
-- Deletes only `.staging-<current-runtime-id>-*` directories after a successful integrity check.
+### Option 1 — double-click
 
-## Usage
-
-1. Download or clone this folder on Windows.
-2. Double-click `Repair-CodexDesktop.cmd`.
-3. Wait for the script to finish. Do not repeatedly launch Codex while the copy is in progress.
-4. If it fails, inspect:
+Download or clone this repository, open `CodexWindowsRuntimeFix`, then double-click:
 
 ```text
-%LOCALAPPDATA%\OpenAI\Codex\one-click-runtime-repair.log
+Repair-CodexDesktop.cmd
 ```
 
-You can also run the PowerShell script directly:
+Wait for the script to finish. Do not repeatedly launch Codex while the repair is copying files.
+
+### Option 2 — PowerShell
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Repair-CodexDesktop.ps1
@@ -50,24 +57,85 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Repair-CodexDesktop.ps
 
 ## Self-test
 
-The repository includes a non-destructive self-test mode that does **not** require Codex Desktop. It tests runtime-ID parsing, relative-file enumeration, and the long-path byte-copy fallback:
+A non-destructive self-test is included. It does **not** require Codex Desktop and does not touch the Codex runtime cache.
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Repair-CodexDesktop.ps1 -SelfTest
 ```
 
-GitHub Actions runs this self-test on `windows-latest` for changes to this folder.
+The self-test checks:
 
-## Limitations
+- runtime-ID parsing;
+- relative file enumeration;
+- the `\\?\` long-path byte-copy fallback.
 
-This is a workaround for a particular runtime-staging failure, not a general Codex repair utility. If a Codex update changes the package layout, staging naming scheme, or startup architecture, the script intentionally stops rather than guessing. A complete end-to-end test requires an affected Windows PC with Codex Desktop installed; CI only validates PowerShell syntax and the non-destructive helper logic.
+GitHub Actions runs the self-test on `windows-latest`.
+
+## Safety and scope
+
+The script intentionally keeps a narrow scope:
+
+- **Does not write to `C:\Program Files\WindowsApps`.** It only reads the already-installed Codex package.
+- **Does not download executables, binaries, or runtime files from the Internet.**
+- **Does not redistribute OpenAI/Codex binaries.**
+- **Does not modify the registry, Windows services, firewall, Microsoft Store settings, or Codex account data.**
+- Writes only under `%LOCALAPPDATA%\OpenAI\Codex\runtimes\cua_node` plus its own log file.
+- Stops only `ChatGPT.exe` processes whose executable path belongs to the installed `OpenAI.Codex` package.
+- Deletes only `.staging-<current-runtime-id>-*` directories after a successful integrity check.
+
+## Logs
+
+If the repair fails, check:
+
+```text
+%LOCALAPPDATA%\OpenAI\Codex\one-click-runtime-repair.log
+```
+
+When opening an issue, please include:
+
+- Windows version;
+- Codex Desktop version;
+- the latest `.staging-*` directory name;
+- whether `node.exe` / `node_repl.exe` exist;
+- the relevant end of the log file.
+
+**Do not post API keys, tokens, account credentials, or unrelated personal data.**
+
+## Known limitations
+
+This is **not** a general Codex repair tool. It only targets the runtime-staging failure described above.
+
+The script intentionally stops instead of guessing when:
+
+- Codex no longer uses the expected MSIX layout;
+- no fresh `.staging-*` directory is created;
+- the staging naming format changes;
+- the runtime still fails integrity checks after copying.
+
+A GitHub Actions pass validates syntax and helper logic, but a true end-to-end repair still requires an affected Windows PC with Codex Desktop installed.
+
+## Observed affected versions
+
+This failure pattern has been observed on the maintainer's affected Windows machine across several Codex Desktop builds, including:
+
+- `26.901.1978.0`
+- `26.901.4073.0`
+- `26.901.5280.0`
+
+This list is **not** a claim that every installation of those versions is affected.
+
+## Contributing
+
+Bug reports and improvements are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md).
+
+For security-sensitive reports, see [SECURITY.md](SECURITY.md).
 
 ## Compliance and trademarks
 
-This repository contains only the workaround scripts and documentation; it does not ship OpenAI binaries, runtime files, logos, API keys, or proprietary assets. `Codex`, `OpenAI`, and related marks belong to their respective owner. Their names are used only to identify the product this workaround targets. Do not present this project as an official OpenAI utility.
+This repository contains only original workaround scripts and documentation. It does not ship OpenAI binaries, runtime files, logos, API keys, or proprietary assets.
 
-OpenAI's Codex CLI repository is Apache-2.0 licensed, but this workaround does not copy source code from that repository. The scripts in this folder are released under the MIT License below.
+`OpenAI`, `Codex`, and related marks belong to their respective owners. Their names are used only to identify the product this workaround targets. Do not present this project as an official OpenAI utility.
 
 ## License
 
-MIT. See `LICENSE`.
+MIT. See [LICENSE](LICENSE).
