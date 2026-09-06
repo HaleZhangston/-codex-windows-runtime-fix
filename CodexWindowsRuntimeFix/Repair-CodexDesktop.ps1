@@ -17,7 +17,7 @@ function Get-RuntimeIdFromStageName {
 
     $match = [regex]::Match($Name, '^\.staging-([^-]+)-')
     if (-not $match.Success) {
-        throw "无法从 staging 目录名解析 runtime ID：$Name"
+        throw "Unable to parse runtime ID from staging directory: $Name"
     }
 
     return $match.Groups[1].Value
@@ -45,12 +45,12 @@ function Test-LongPathByteCopy {
         [System.IO.File]::WriteAllBytes("\\?\$targetFile", $bytes)
 
         if (-not [System.IO.File]::Exists("\\?\$targetFile")) {
-            throw '长路径目标文件未创建。'
+            throw 'Long-path destination file was not created.'
         }
 
         $copied = [System.IO.File]::ReadAllBytes("\\?\$targetFile")
         if ([System.Text.Encoding]::UTF8.GetString($copied) -ne 'codex-runtime-fix-self-test') {
-            throw '长路径文件内容校验失败。'
+            throw 'Long-path file content verification failed.'
         }
     }
     finally {
@@ -65,7 +65,7 @@ function Invoke-SelfTest {
     $runtimeId = Get-RuntimeIdFromStageName -Name $sample
 
     if ($runtimeId -ne '440c4f095d41ea30') {
-        throw "runtime ID 解析测试失败：$runtimeId"
+        throw "Runtime ID parsing test failed: $runtimeId"
     }
 
     $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("codex-runtime-list-selftest-" + [guid]::NewGuid().ToString('N'))
@@ -76,10 +76,10 @@ function Invoke-SelfTest {
 
         $files = @(Get-RelativeFileList -Root $tempRoot)
         if ($files.Count -ne 2) {
-            throw "相对路径枚举测试失败，文件数：$($files.Count)"
+            throw "Relative path enumeration test failed. File count: $($files.Count)"
         }
         if ($files -notcontains 'a\b\one.txt' -or $files -notcontains 'two.txt') {
-            throw '相对路径枚举测试失败。'
+            throw 'Relative path enumeration test failed.'
         }
     }
     finally {
@@ -111,27 +111,27 @@ function Write-RepairLog {
 }
 
 try {
-    Write-RepairLog '开始 Codex Desktop runtime 修复。'
+    Write-RepairLog 'Starting Codex Desktop runtime repair.'
 
     $pkg = Get-AppxPackage -Name 'OpenAI.Codex' | Select-Object -First 1
     if (-not $pkg) {
-        throw '没有找到 OpenAI.Codex MSIX 包。'
+        throw 'OpenAI.Codex MSIX package was not found.'
     }
 
     $installLocation = [string]$pkg.InstallLocation
-    Write-RepairLog "当前 Codex Desktop 版本：$($pkg.Version)"
+    Write-RepairLog "Detected Codex Desktop version: $($pkg.Version)"
 
     $src = Join-Path $installLocation 'app\resources\cua_node'
     $root = Join-Path $env:LOCALAPPDATA 'OpenAI\Codex\runtimes\cua_node'
 
     if (-not (Test-Path -LiteralPath $src)) {
-        throw "找不到当前 Codex 安装包中的 cua_node：$src"
+        throw "cua_node was not found in the installed Codex package: $src"
     }
     if (-not (Test-Path -LiteralPath (Join-Path $src 'bin\node.exe'))) {
-        throw '官方 cua_node 中缺少 bin\node.exe。'
+        throw 'Installed cua_node is missing bin\node.exe.'
     }
     if (-not (Test-Path -LiteralPath (Join-Path $src 'bin\node_repl.exe'))) {
-        throw '官方 cua_node 中缺少 bin\node_repl.exe。'
+        throw 'Installed cua_node is missing bin\node_repl.exe.'
     }
 
     New-Item -ItemType Directory -Path $root -Force | Out-Null
@@ -166,12 +166,12 @@ try {
     $appUri = "shell:AppsFolder\$($pkg.PackageFamilyName)!App"
 
     Start-Process -FilePath 'explorer.exe' -ArgumentList $appUri
-    Write-RepairLog '已尝试正常启动 Codex，等待主窗口。'
+    Write-RepairLog 'Started Codex normally and waiting for a main window.'
 
     for ($i = 0; $i -lt 12; $i++) {
         Start-Sleep -Seconds 1
         if (Get-CodexWindowProcess) {
-            Write-RepairLog 'Codex 已正常创建主窗口，无需修复。'
+            Write-RepairLog 'Codex created a main window normally. No repair is required.'
             exit 0
         }
     }
@@ -184,22 +184,22 @@ try {
     } | Sort-Object LastWriteTime -Descending | Select-Object -First 1
 
     if (-not $latestStage) {
-        throw '本次启动没有生成新的 cua_node .staging-* 目录；当前故障可能不是此脚本针对的 runtime 复制问题。'
+        throw 'This launch did not create a fresh cua_node .staging-* directory. The current failure may not be the runtime-staging issue targeted by this script.'
     }
 
     $runtimeId = Get-RuntimeIdFromStageName -Name $latestStage.Name
     $dst = Join-Path $root $runtimeId
-    Write-RepairLog "检测到 runtime ID：$runtimeId"
+    Write-RepairLog "Detected runtime ID: $runtimeId"
 
     New-Item -ItemType Directory -Path $dst -Force | Out-Null
 
-    Write-RepairLog '开始 xcopy /E /I /Y /G /H。'
+    Write-RepairLog 'Running xcopy /E /I /Y /G /H.'
     & "$env:SystemRoot\System32\xcopy.exe" "$src\*" "$dst\" /E /I /Y /G /H /Q | Out-Null
-    Write-RepairLog "xcopy 返回码：$LASTEXITCODE"
+    Write-RepairLog "xcopy exit code: $LASTEXITCODE"
 
-    Write-RepairLog '开始 Robocopy 补齐深层目录。'
+    Write-RepairLog 'Running Robocopy to fill deep directory trees.'
     & "$env:SystemRoot\System32\robocopy.exe" "$src" "$dst" /E /COPY:DAT /DCOPY:DAT /R:0 /W:0 /NFL /NDL /NJH /NJS /NP | Out-Null
-    Write-RepairLog "Robocopy 返回码：$LASTEXITCODE"
+    Write-RepairLog "Robocopy exit code: $LASTEXITCODE"
 
     $srcFiles = @(Get-RelativeFileList -Root $src)
     $dstFiles = @(Get-RelativeFileList -Root $dst)
@@ -209,7 +209,7 @@ try {
     }
 
     $missing = @($srcFiles | Where-Object { -not $dstLookup.ContainsKey($_) })
-    Write-RepairLog "第一次校验：官方源 $($srcFiles.Count)；目标 $($dstFiles.Count)；缺失 $($missing.Count)。"
+    Write-RepairLog "Initial integrity check: source=$($srcFiles.Count); target=$($dstFiles.Count); missing=$($missing.Count)."
 
     foreach ($relativePath in $missing) {
         $sourceFile = Join-Path $src $relativePath
@@ -221,10 +221,10 @@ try {
         try {
             $bytes = [System.IO.File]::ReadAllBytes("\\?\$sourceFile")
             [System.IO.File]::WriteAllBytes("\\?\$targetFile", $bytes)
-            Write-RepairLog "已补齐：$relativePath"
+            Write-RepairLog "Filled missing file: $relativePath"
         }
         catch {
-            Write-RepairLog "补齐失败：$relativePath；$($_.Exception.Message)"
+            Write-RepairLog "Failed to fill missing file: $relativePath; $($_.Exception.Message)"
         }
     }
 
@@ -237,38 +237,38 @@ try {
 
     $nodeOk = Test-Path -LiteralPath (Join-Path $dst 'bin\node.exe')
     $nodeReplOk = Test-Path -LiteralPath (Join-Path $dst 'bin\node_repl.exe')
-    Write-RepairLog "最终校验：官方源 $($srcFiles.Count)；目标 $($dstFilesAfter.Count)；缺失 $($missingAfter.Count)；node.exe=$nodeOk；node_repl.exe=$nodeReplOk。"
+    Write-RepairLog "Final integrity check: source=$($srcFiles.Count); target=$($dstFilesAfter.Count); missing=$($missingAfter.Count); node.exe=$nodeOk; node_repl.exe=$nodeReplOk."
 
     if (-not $nodeOk -or -not $nodeReplOk -or $missingAfter.Count -gt 0) {
         foreach ($relativePath in ($missingAfter | Select-Object -First 20)) {
-            Write-RepairLog "仍缺文件：$relativePath"
+            Write-RepairLog "Still missing: $relativePath"
         }
-        throw 'runtime 未能完整补齐。'
+        throw 'The runtime could not be reconstructed completely.'
     }
 
     Get-ChildItem -LiteralPath $root -Directory -Force -ErrorAction SilentlyContinue | Where-Object {
         $_.Name -like ".staging-$runtimeId-*"
     } | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
 
-    Write-RepairLog "runtime $runtimeId 已完整修复，并清理本版本失败 staging。"
+    Write-RepairLog "Runtime $runtimeId is complete. Failed staging directories for this runtime ID were cleaned."
 
     Stop-CodexDesktopProcesses
     Start-Sleep -Seconds 1
     Start-Process -FilePath 'explorer.exe' -ArgumentList $appUri
-    Write-RepairLog '已重新启动 Codex Desktop。'
+    Write-RepairLog 'Restarted Codex Desktop.'
 
     for ($i = 0; $i -lt 20; $i++) {
         Start-Sleep -Seconds 1
         if (Get-CodexWindowProcess) {
-            Write-RepairLog '修复成功：Codex 已创建主窗口。'
+            Write-RepairLog 'Repair succeeded: Codex created a main window.'
             exit 0
         }
     }
 
-    throw 'runtime 已完整，但 Codex 重新启动后仍未检测到主窗口。'
+    throw 'The runtime is complete, but Codex still did not create a main window after restart.'
 }
 catch {
-    Write-RepairLog "修复失败：$($_.Exception.Message)"
-    Write-Host "日志：$logFile"
+    Write-RepairLog "Repair failed: $($_.Exception.Message)"
+    Write-Host "Log: $logFile"
     exit 1
 }
