@@ -1,0 +1,110 @@
+name: Publish Codex Windows Runtime Fix release
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'CodexWindowsRuntimeFix/VERSION'
+      - 'CodexWindowsRuntimeFix/RELEASE_NOTES.md'
+      - '.github/workflows/codex-runtime-release.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Read and validate version
+        id: version
+        shell: pwsh
+        run: |
+          $version = (Get-Content -LiteralPath '.\CodexWindowsRuntimeFix\VERSION' -Raw).Trim()
+          if ($version -notmatch '^\d+\.\d+\.\d+$') {
+            throw "Invalid VERSION value: $version"
+          }
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "tag=v$version" >> $env:GITHUB_OUTPUT
+
+      - name: Parse PowerShell before packaging
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            "$PWD\CodexWindowsRuntimeFix\Repair-CodexDesktop.ps1",
+            [ref]$tokens,
+            [ref]$errors
+          ) | Out-Null
+          if ($errors.Count -gt 0) {
+            $errors | Format-List
+            exit 1
+          }
+
+      - name: Run non-destructive self-test
+        shell: powershell
+        run: |
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\CodexWindowsRuntimeFix\Repair-CodexDesktop.ps1 -SelfTest
+
+      - name: Build release ZIP
+        id: package
+        shell: pwsh
+        run: |
+          $version = '${{ steps.version.outputs.version }}'
+          $packageName = "CodexWindowsRuntimeFix-v$version"
+          $dist = Join-Path $PWD 'dist'
+          $stage = Join-Path $dist $packageName
+          New-Item -ItemType Directory -Path $stage -Force | Out-Null
+
+          $files = @(
+            'Repair-CodexDesktop.ps1',
+            'Repair-CodexDesktop.cmd',
+            'README.md',
+            'LICENSE',
+            'VERSION',
+            'CHANGELOG.md',
+            'SECURITY.md'
+          )
+
+          foreach ($file in $files) {
+            Copy-Item -LiteralPath (Join-Path $PWD "CodexWindowsRuntimeFix\$file") -Destination (Join-Path $stage $file) -Force
+          }
+
+          $zip = Join-Path $dist "$packageName.zip"
+          Compress-Archive -LiteralPath "$stage\*" -DestinationPath $zip -CompressionLevel Optimal -Force
+
+          $hash = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          $shaFile = "$zip.sha256"
+          Set-Content -LiteralPath $shaFile -Value "$hash  $packageName.zip" -Encoding ascii
+
+          "zip=$zip" >> $env:GITHUB_OUTPUT
+          "sha=$shaFile" >> $env:GITHUB_OUTPUT
+
+      - name: Create GitHub Release if it does not exist
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = '${{ steps.version.outputs.tag }}'
+          $repo = '${{ github.repository }}'
+
+          gh release view $tag --repo $repo *> $null
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "Release $tag already exists; nothing to publish."
+            exit 0
+          }
+
+          gh release create $tag `
+            '${{ steps.package.outputs.zip }}' `
+            '${{ steps.package.outputs.sha }}' `
+            --repo $repo `
+            --target '${{ github.sha }}' `
+            --title "Codex Windows Runtime Fix $tag" `
+            --notes-file '.\CodexWindowsRuntimeFix\RELEASE_NOTES.md' `
+            --latest
