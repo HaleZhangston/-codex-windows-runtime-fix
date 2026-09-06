@@ -83,7 +83,7 @@ jobs:
           }
 
           $zip = Join-Path $dist "$packageName.zip"
-          Compress-Archive -LiteralPath "$stage\*" -DestinationPath $zip -CompressionLevel Optimal -Force
+          Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $zip -CompressionLevel Optimal -Force
 
           $hash = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant()
           $shaFile = "$zip.sha256"
