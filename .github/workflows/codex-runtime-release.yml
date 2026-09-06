@@ -5,8 +5,14 @@ on:
     branches:
       - main
     paths:
+      - 'CodexWindowsRuntimeFix/Repair-CodexDesktop.ps1'
+      - 'CodexWindowsRuntimeFix/Repair-CodexDesktop.cmd'
+      - 'CodexWindowsRuntimeFix/README.md'
+      - 'CodexWindowsRuntimeFix/LICENSE'
       - 'CodexWindowsRuntimeFix/VERSION'
+      - 'CodexWindowsRuntimeFix/CHANGELOG.md'
       - 'CodexWindowsRuntimeFix/RELEASE_NOTES.md'
+      - 'CodexWindowsRuntimeFix/SECURITY.md'
       - '.github/workflows/codex-runtime-release.yml'
   workflow_dispatch:
 
@@ -47,7 +53,7 @@ jobs:
             exit 1
           }
 
-      - name: Run non-destructive self-test
+      - name: Run non-destructive self-test with Windows PowerShell 5.1
         shell: powershell
         run: |
           powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\CodexWindowsRuntimeFix\Repair-CodexDesktop.ps1 -SelfTest
