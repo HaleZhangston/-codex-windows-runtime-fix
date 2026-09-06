@@ -1,0 +1,65 @@
+name: Codex Windows Runtime Fix bug report
+description: Report a problem with the Codex Windows runtime staging workaround
+title: "[Codex Runtime Fix] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a problem. Please do not include API keys, tokens, passwords, cookies, or unrelated personal information.
+
+  - type: input
+    id: windows_version
+    attributes:
+      label: Windows version
+      placeholder: Windows 11 24H2
+    validations:
+      required: true
+
+  - type: input
+    id: codex_version
+    attributes:
+      label: Codex Desktop version
+      description: You can check with `Get-AppxPackage -Name OpenAI.Codex | Select Name,Version`.
+      placeholder: 26.901.5280.0
+    validations:
+      required: true
+
+  - type: input
+    id: staging
+    attributes:
+      label: Latest staging directory
+      description: Only the directory name is needed.
+      placeholder: .staging-440c4f095d41ea30-RcH05o
+
+  - type: dropdown
+    id: window_handle
+    attributes:
+      label: Does Codex create a visible window?
+      options:
+        - No, background processes only
+        - Yes, but the repair still fails
+        - Not sure
+    validations:
+      required: true
+
+  - type: dropdown
+    id: node_repl
+    attributes:
+      label: Is bin\node_repl.exe present in the failed staging runtime?
+      options:
+        - "Yes"
+        - "No"
+        - Not checked
+
+  - type: textarea
+    id: log
+    attributes:
+      label: Relevant repair log output
+      description: Paste only the relevant end of `%LOCALAPPDATA%\OpenAI\Codex\one-click-runtime-repair.log` and redact sensitive data.
+      render: text
+
+  - type: textarea
+    id: details
+    attributes:
+      label: Additional details
+      description: What did you expect, and what happened instead?
