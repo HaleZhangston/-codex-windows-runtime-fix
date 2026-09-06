@@ -1,0 +1,58 @@
+name: Codex runtime workaround test
+
+on:
+  push:
+    paths:
+      - 'CodexWindowsRuntimeFix/**'
+      - '.github/workflows/codex-runtime-workaround-test.yml'
+  pull_request:
+    paths:
+      - 'CodexWindowsRuntimeFix/**'
+      - '.github/workflows/codex-runtime-workaround-test.yml'
+
+jobs:
+  powershell-test:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Parse PowerShell syntax
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            "$PWD\CodexWindowsRuntimeFix\Repair-CodexDesktop.ps1",
+            [ref]$tokens,
+            [ref]$errors
+          ) | Out-Null
+          if ($errors.Count -gt 0) {
+            $errors | Format-List
+            exit 1
+          }
+
+      - name: Run non-destructive self-test
+        shell: powershell
+        run: |
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\CodexWindowsRuntimeFix\Repair-CodexDesktop.ps1 -SelfTest
+
+      - name: Static safety guardrails
+        shell: pwsh
+        run: |
+          $text = Get-Content -LiteralPath .\CodexWindowsRuntimeFix\Repair-CodexDesktop.ps1 -Raw
+          $forbidden = @(
+            'Invoke-WebRequest',
+            'Invoke-RestMethod',
+            'Start-BitsTransfer',
+            'Set-ItemProperty.*Registry',
+            'New-Service',
+            'Set-Service',
+            'netsh',
+            'Remove-Item.*WindowsApps'
+          )
+          foreach ($pattern in $forbidden) {
+            if ($text -match $pattern) {
+              throw "Forbidden pattern found: $pattern"
+            }
+          }
