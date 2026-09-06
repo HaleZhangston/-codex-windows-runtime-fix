@@ -1,8 +1,0 @@
-bin/
-obj/
-publish*/
-*.user
-*.pdb
-
-# 图像生成过程文件；最终 Windows 图标使用根目录 app-icon.ico
-Assets/
